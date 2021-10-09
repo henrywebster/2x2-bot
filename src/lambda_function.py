@@ -38,15 +38,11 @@ def lambda_handler(event, context):
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.getenv("DB_TABLE_NAME"))
 
-    items = table.scan()["Items"]
+    items = [i for i in table.scan()["Items"] if not i["posted"]]
     if not items:
-        return create_response(400, "Database is empty")
-
-    unposted_items = [i for i in items if not i["posted"]]
-    if not unposted_items:
         return create_response(400, "Database has no unposted content")
 
-    item = random.choice(unposted_items)
+    item = random.choice(items)
     filename = item["object"]
 
     bucket = os.getenv("S3_BUCKET_NAME")
