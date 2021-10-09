@@ -1,18 +1,27 @@
+"""
+AWS Lambda function for posting from the 2x2 Twitter bot.
+"""
 import os
+import random
 import boto3
 import tweepy
-import random
 
 from fs import open_fs
 
 
-def create_response(statusCode, message):
-    return {"statusCode": statusCode, "body": {"message": message}}
+def create_response(status_code, message):
+    """
+    Helper method for creating a response object.
+    """
+    return {"statusCode": status_code, "body": {"message": message}}
 
 
-def update_posted(table, id):
+def update_posted(table, item_id):
+    """
+    Helper method for updating the database after a painting is posted.
+    """
     table.update_item(
-        Key={"id": id},
+        Key={"id": item_id},
         UpdateExpression="set posted = :r",
         ExpressionAttributeValues={
             ":r": True,
@@ -22,7 +31,10 @@ def update_posted(table, id):
 
 
 def lambda_handler(event, context):
-
+    """
+    Handle a Lambda event by finding an unposted entry, downloading the picture, and posting
+    to Twitter.
+    """
     dynamodb = boto3.resource("dynamodb")
     table = dynamodb.Table(os.getenv("DB_TABLE_NAME"))
 
@@ -37,7 +49,8 @@ def lambda_handler(event, context):
     item = random.choice(unposted_items)
     filename = item["object"]
 
-    s3fs = open_fs("s3://{}/".format(os.getenv("S3_BUCKET_NAME")))
+    bucket = os.getenv("S3_BUCKET_NAME")
+    s3fs = open_fs(f"s3://{bucket}/")
     with s3fs.open(filename, "rb") as f:
 
         auth = tweepy.OAuthHandler(
@@ -49,7 +62,7 @@ def lambda_handler(event, context):
         api = tweepy.API(auth)
 
         media = api.simple_upload(filename, file=f)
-        api.update_status(item["text"], media_ids=[media.media_id])
+        api.update_status(item["title"], media_ids=[media.media_id])
 
     update_posted(table, item["id"])
 
