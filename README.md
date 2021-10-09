@@ -1,7 +1,7 @@
-# 2x2-bot
+# 2x2 Bot 🐦🤖
 Repository for the backend code being used by the 2x2 Twitter bot.
 
-## How to Use
+## How to Use 🧩
 
 ### Set up an S3 bucket and DynamoDB database
 The S3 bucket will store the image files that are posted to Twitter.
@@ -36,6 +36,8 @@ Upload the archive to AWS Lambda:
 ![image](https://user-images.githubusercontent.com/14267649/136667734-4cc3e9fe-fd03-4901-ae0e-d45e77413737.png)
 
 Set up environment variables:
+|Variable|Value|
+|---|---|
 |ACCESS_TOKEN|Access token from the Twitter API|
 |ACCESS_TOKEN_SECRET|Access token secret from the Twitter API|
 |CONSUMER_KEY|API key from the Twitter API|
@@ -52,7 +54,7 @@ To add permissions for the S3 bucket and DynamoDB table, go to the permissions s
 Now the function is ready to use. 
 
 
-# TODO
+## TODO 📋
 * The function is taking a long time, mostly from downloading the photo from S3. I am not too concerned because the function runs very infrequently. I would still like to see if I can shorten execution time.
 * I would like the triggering event to automatically pause the schedule if it detects there are no unposted entries in the database.
 * Create scripts that upload the photo to S3 and add a corresponding entry to the database.
