@@ -19,22 +19,13 @@ def initialize_twitter(
     return tweepy.API(auth)
 
 
-def create_response(status_code, message):
-    """
-    Helper method for creating a response object
-    """
-    return {"statusCode": status_code, "body": {"message": message}}
-
-
 def post(bucket_name, table_name, index_name, region, twitter):
     """
     Scan the GSI for unposted entries, download the picture, and post to Twitter
     """
 
-    # get a painting from the database
+    # get a random painting from the database
     dynamodb = boto3.resource("dynamodb", region_name=region).Table(table_name)
-
-    # TODO add index
     items = dynamodb.scan(IndexName=index_name)["Items"]
     if not items:
         raise ValueError("No unposted paintings found in the database")
@@ -42,7 +33,6 @@ def post(bucket_name, table_name, index_name, region, twitter):
 
     # download from s3 to a temporary file and post to Twitter
     s3 = boto3.client("s3", region_name=region)
-
     with tempfile.SpooledTemporaryFile() as fp:
         s3.download_fileobj(bucket_name, item["id"], fp)
         fp.seek(0)  # move pointer to beginning of buffer for reading
@@ -55,9 +45,16 @@ def post(bucket_name, table_name, index_name, region, twitter):
     )
 
 
+def create_response(status_code, message):
+    """
+    Helper method for creating a response object
+    """
+    return {"statusCode": status_code, "body": {"message": message}}
+
+
 def lambda_handler(event, context):
     """
-    Handle a Lambda event by .
+    Setup Twitter integration, run the post method, and respond with the status
     """
 
     api = initialize_twitter(
