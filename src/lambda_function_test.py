@@ -1,3 +1,7 @@
+"""
+Unit tests for the Lambda function
+"""
+
 import boto3
 import unittest
 import tweepy
