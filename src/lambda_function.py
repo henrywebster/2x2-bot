@@ -5,61 +5,77 @@ import os
 import random
 import boto3
 import tweepy
+import tempfile
 
-from fs import open_fs
+
+def initialize_twitter(
+    consumer_key, consumer_secret, access_token, access_token_secret
+):
+    """
+    Initialize Tweepy with Twitter API credentials
+    """
+    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_token, access_token_secret)
+    return tweepy.API(auth)
 
 
 def create_response(status_code, message):
     """
-    Helper method for creating a response object.
+    Helper method for creating a response object
     """
     return {"statusCode": status_code, "body": {"message": message}}
 
 
-def update_posted(table, item_id):
+def post(bucket_name, table_name, index_name, region, twitter):
     """
-    Helper method for updating the database after a painting is posted.
+    Scan the GSI for unposted entries, download the picture, and post to Twitter
     """
-    table.update_item(
-        Key={"id": item_id},
-        UpdateExpression="set posted = :r",
-        ExpressionAttributeValues={
-            ":r": True,
-        },
-        ReturnValues="UPDATED_NEW",
+
+    # get a painting from the database
+    dynamodb = boto3.resource("dynamodb", region_name=region).Table(table_name)
+
+    # TODO add index
+    items = dynamodb.scan(IndexName=index_name)["Items"]
+    if not items:
+        raise ValueError("No unposted paintings found in the database")
+    item = random.choice(items)
+
+    # download from s3 to a temporary file and post to Twitter
+    s3 = boto3.client("s3", region_name=region)
+
+    with tempfile.SpooledTemporaryFile() as fp:
+        s3.download_fileobj(bucket_name, item["id"], fp)
+        fp.seek(0)  # move pointer to beginning of buffer for reading
+        media = twitter.simple_upload(item["id"], file=fp)
+        twitter.update_status(item["title"], media_ids=[media.media_id])
+
+    dynamodb.update_item(
+        Key={"id": item["id"]},
+        UpdateExpression="REMOVE process_time",
     )
 
 
 def lambda_handler(event, context):
     """
-    Handle a Lambda event by finding an unposted entry, downloading the picture, and posting
-    to Twitter.
+    Handle a Lambda event by .
     """
-    dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table(os.getenv("DB_TABLE_NAME"))
 
-    items = [i for i in table.scan()["Items"] if not i["posted"]]
-    if not items:
-        return create_response(400, "Database has no unposted content")
+    api = initialize_twitter(
+        os.getenv("CONSUMER_KEY"),
+        os.getenv("CONSUMER_SECRET"),
+        os.getenv("ACCESS_TOKEN"),
+        os.getenv("ACCESS_TOKEN_SECRET"),
+    )
 
-    item = random.choice(items)
-    filename = item["object"]
-
-    bucket = os.getenv("S3_BUCKET_NAME")
-    s3fs = open_fs(f"s3://{bucket}/")
-    with s3fs.open(filename, "rb") as f:
-
-        auth = tweepy.OAuthHandler(
-            os.getenv("CONSUMER_KEY"), os.getenv("CONSUMER_SECRET")
+    try:
+        post(
+            os.getenv("S3_BUCKET_NAME"),
+            os.getenv("DB_TABLE_NAME"),
+            os.getenv("DB_INDEX_NAME"),
+            os.getenv("REGION_NAME"),
+            api,
         )
-        auth.set_access_token(
-            os.getenv("ACCESS_TOKEN"), os.getenv("ACCESS_TOKEN_SECRET")
-        )
-        api = tweepy.API(auth)
-
-        media = api.simple_upload(filename, file=f)
-        api.update_status(item["title"], media_ids=[media.media_id])
-
-    update_posted(table, item["id"])
+    except:
+        return create_response(500, "Error posting to Twitter")
 
     return create_response(200, "Posted to Twitter")

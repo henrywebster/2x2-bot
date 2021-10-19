@@ -10,7 +10,7 @@ source ../.env
 FILEPATH=$1
 TITLE=$2
 OBJECTNAME=$(basename $FILEPATH)
-UUID=$(uuidgen)
+TIME=$(date +%s)
 
 echo $TITLE
 
@@ -18,4 +18,4 @@ echo $TITLE
 aws s3 cp $FILEPATH s3://$S3_BUCKET_NAME
 
 # make entry in DynamoDB
-aws dynamodb put-item --table-name $DB_TABLE_NAME --item "{\"id\": {\"S\": \""$UUID"\"}, \"title\": {\"S\": \"$TITLE\"}, \"object\": {\"S\": \""$OBJECTNAME"\"}, \"posted\": {\"BOOL\": false}}"
+aws dynamodb put-item --table-name $DB_TABLE_NAME --item "{\"id\": {\"S\": \""$OBJECTNAME"\"}, \"title\": {\"S\": \"$TITLE\"}, \"process_time\": {\"N\": \"$TIME\"}}"
